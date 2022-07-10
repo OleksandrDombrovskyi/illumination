@@ -19,7 +19,7 @@ volatile int resetDelayInc = 0;
 
 //state
 volatile int distance = 1200;
-volatile bool isLaserOn = false;
+volatile bool isReset = false;
 
 //laser sensor subroutine
 unsigned short lenth_val = 0;
@@ -42,26 +42,30 @@ void TOF10120::clk() {
     pollingDelayInc++;
   }
   
-  if (isLaserOn) {
-    resetDelayInc = 0;
-  } else {
+  if (isReset) {
     if (resetDelayInc < RESET_DELAY) {
       resetDelayInc++;
     }
+  } else {
+    resetDelayInc = 0;
   }
 }
 
 bool TOF10120::isMovement() {
+  if (!isLaserOn()) {
+    return false;
+  }
+  
+  if (isReset) {
+    reset();
+    return false;
+  }
+  
   int currentDistance = getDistance();
   return currentDistance >= LAZER_SENSOR_FROM_DISTANCE && currentDistance <= LAZER_SENSOR_TO_DISTANCE;
 }
 
 int TOF10120::getDistance() {
-  if (!isLaserOn) {
-    reset();
-    return distance;
-  }
-  
   if (pollingDelayInc >= POLLING_DELAY) {
     pollingDelayInc = 0;
     distance = ReadDistance();
@@ -128,12 +132,14 @@ void TOF10120::SensorRead(unsigned char addr,unsigned char* datbuf,unsigned int 
 }
 
 void TOF10120::reset() {
-  if (isLaserOn) {
+  if (!isReset) {
     Serial.println("Start RESET!");
     Wire.endTransmission();
 
     Serial.println("Turn laser off!");
     turnLaserOff();
+    isReset = true;
+    Serial.println("Laser is off!!");
     return;
   }
   
@@ -143,19 +149,25 @@ void TOF10120::reset() {
 
     Serial.println("Turn laser on!");
     turnLaserOn();
+    Serial.println("Laser is on!");
 
     Serial.println("Wire.begin()");
     Wire.begin();
     Wire.setWireTimeout(100000, true); //true - reset Wire upon timeout
+    
+    isReset = false;
+    Serial.println("Finish RESET!");
   }
 }
 
 void TOF10120::turnLaserOn() {
   digitalWrite(A0, HIGH);
-  isLaserOn = true;
 }
 
 void TOF10120::turnLaserOff() {
   digitalWrite(A0, LOW);
-  isLaserOn = false;
+}
+
+bool TOF10120::isLaserOn() {
+  return digitalRead(A0) == HIGH;
 }

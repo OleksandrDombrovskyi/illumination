@@ -17,6 +17,7 @@ class TOF10120 {
     void reset();
     void turnLaserOn();
     void turnLaserOff();
+    bool isLaserOn();
 };
 
 #endif
