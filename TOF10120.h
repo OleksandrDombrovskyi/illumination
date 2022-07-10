@@ -14,6 +14,9 @@ class TOF10120 {
     int getDistance();
     int ReadDistance();
     void SensorRead(unsigned char addr,unsigned char* datbuf,unsigned int cnt);
+    void reset();
+    void turnLaserOn();
+    void turnLaserOff();
 };
 
 #endif

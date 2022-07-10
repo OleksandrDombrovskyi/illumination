@@ -8,14 +8,18 @@ const int POLLING_DELAY = 5;
 const int LAZER_SENSOR_FROM_DISTANCE = 0;
 const int LAZER_SENSOR_TO_DISTANCE = 1000;
 
-const int VALUE_NOT_CHANGED_LIMIT = 10;
+const int VALUE_NOT_CHANGED_LIMIT = 50;
+
+const int RESET_DELAY = 100;
 
 //increments
 volatile int pollingDelayInc = 0;
 volatile int valueNotChangedInc = 0;
+volatile int resetDelayInc = 0;
 
 //state
 volatile int distance = 1200;
+volatile bool isLaserOn = false;
 
 //laser sensor subroutine
 unsigned short lenth_val = 0;
@@ -24,6 +28,10 @@ unsigned char dirsend_flag=0;
 
 
 void TOF10120::initSensor() {
+  //turn on laser sensor
+  pinMode(A0, OUTPUT);
+  turnLaserOn();
+  
   Wire.begin();
   Wire.setWireTimeout(100000, true); //true - reset Wire upon timeout
 }
@@ -33,6 +41,14 @@ void TOF10120::clk() {
   if (pollingDelayInc < POLLING_DELAY) {
     pollingDelayInc++;
   }
+  
+  if (isLaserOn) {
+    resetDelayInc = 0;
+  } else {
+    if (resetDelayInc < RESET_DELAY) {
+      resetDelayInc++;
+    }
+  }
 }
 
 bool TOF10120::isMovement() {
@@ -41,6 +57,11 @@ bool TOF10120::isMovement() {
 }
 
 int TOF10120::getDistance() {
+  if (!isLaserOn) {
+    reset();
+    return distance;
+  }
+  
   if (pollingDelayInc >= POLLING_DELAY) {
     pollingDelayInc = 0;
     distance = ReadDistance();
@@ -64,6 +85,8 @@ int TOF10120::ReadDistance(){
         Serial.print(" times: ");
         Serial.print(distance);
         Serial.println(" mm");
+        Serial.println("Call RESET!");
+        reset();
         valueNotChangedInc = 0;
       }
     } else {
@@ -102,4 +125,37 @@ void TOF10120::SensorRead(unsigned char addr,unsigned char* datbuf,unsigned int 
     *datbuf++ = Wire.read();  // receive high byte (overwrites previous reading)
     *datbuf++ = Wire.read(); // receive low byte as lower 8 bits
   }
+}
+
+void TOF10120::reset() {
+  if (isLaserOn) {
+    Serial.println("Start RESET!");
+    Wire.endTransmission();
+
+    Serial.println("Turn laser off!");
+    turnLaserOff();
+    return;
+  }
+  
+  if (resetDelayInc >= RESET_DELAY) {
+    Serial.println("Wire.end()");
+    Wire.end();
+
+    Serial.println("Turn laser on!");
+    turnLaserOn();
+
+    Serial.println("Wire.begin()");
+    Wire.begin();
+    Wire.setWireTimeout(100000, true); //true - reset Wire upon timeout
+  }
+}
+
+void TOF10120::turnLaserOn() {
+  digitalWrite(A0, HIGH);
+  isLaserOn = true;
+}
+
+void TOF10120::turnLaserOff() {
+  digitalWrite(A0, LOW);
+  isLaserOn = false;
 }
