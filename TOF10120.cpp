@@ -59,12 +59,12 @@ int TOF10120::ReadDistance(){
     if (distance == lenth_val) {
       valueNotChangedInc++;
       if (valueNotChangedInc >= VALUE_NOT_CHANGED_LIMIT) {
-        valueNotChangedInc = 0;
         Serial.print("Distance value was not changed ");
         Serial.print(valueNotChangedInc);
         Serial.print(" times: ");
         Serial.print(distance);
         Serial.println(" mm");
+        valueNotChangedInc = 0;
       }
     } else {
       valueNotChangedInc = 0;
