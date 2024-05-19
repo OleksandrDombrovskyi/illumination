@@ -31,7 +31,7 @@ void TOF10120::initSensor() {
   //turn on laser sensor
   pinMode(A0, OUTPUT);
   turnLaserOn();
-  
+
   Wire.begin();
   Wire.setWireTimeout(100000, true); //true - reset Wire upon timeout
 }
@@ -41,7 +41,7 @@ void TOF10120::clk() {
   if (pollingDelayInc < POLLING_DELAY) {
     pollingDelayInc++;
   }
-  
+
   if (isReset) {
     if (resetDelayInc < RESET_DELAY) {
       resetDelayInc++;
@@ -52,15 +52,15 @@ void TOF10120::clk() {
 }
 
 bool TOF10120::isMovement() {
-  if (!isLaserOn()) {
-    return false;
-  }
-  
   if (isReset) {
     reset();
     return false;
   }
-  
+
+  if (!isLaserOn()) {
+    return false;
+  }
+
   int currentDistance = getDistance();
   return currentDistance >= LAZER_SENSOR_FROM_DISTANCE && currentDistance <= LAZER_SENSOR_TO_DISTANCE;
 }
@@ -72,7 +72,7 @@ int TOF10120::getDistance() {
 //    Serial.print(distance);
 //    Serial.println(" mm");
   }
-  
+
   return distance;
 }
 
@@ -142,7 +142,7 @@ void TOF10120::reset() {
     Serial.println("Laser is off!!");
     return;
   }
-  
+
   if (resetDelayInc >= RESET_DELAY) {
     Serial.println("Wire.end()");
     Wire.end();
@@ -154,7 +154,7 @@ void TOF10120::reset() {
     Serial.println("Wire.begin()");
     Wire.begin();
     Wire.setWireTimeout(100000, true); //true - reset Wire upon timeout
-    
+
     isReset = false;
     Serial.println("Finish RESET!");
   }
