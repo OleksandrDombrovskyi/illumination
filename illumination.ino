@@ -1,20 +1,20 @@
 /*
  * Fast PWM mode. The counter counts from BOTTOM to TOP then restarts from BOTTOM.
- * 
- * 
+ *
+ *
  * What is the frequency of my timer?
- * 
- * The Arduino has a system clock of 16MHz and the timer clock frequency will be 
+ *
+ * The Arduino has a system clock of 16MHz and the timer clock frequency will be
  * the system clock frequency divided by the prescale factor.
- * In our case prescale factor is 1 (TCCR1B |= 1 << CS10), thus one tick of the system clock 
+ * In our case prescale factor is 1 (TCCR1B |= 1 << CS10), thus one tick of the system clock
  * corresponds to one tick of our Timer1.
  * We have TOP ticks per cycle. In the code ICR1 = MAX_PWM_VALUE, meaning TOP = MAX, or 65535.
  * Thus cycle frequency is 16MHz / 65535 = 244 Hz.
- * 
- * 
+ *
+ *
  * Timeline, scale is one timer cycle.
  * On the timeline TOP != MAX for illustrative purpose (in the code TOP = MAX).
- * 
+ *
  *    pin 10 is HIGH            <-->        pin 10 is LOW             unused
  * |------------------------------                                               |
  * |                              _____________________________                  |
@@ -27,8 +27,10 @@
  */
 
 #include "TOF10120.h"
+#include "DS3231Clock.h"
 
 TOF10120 sensor;
+DS3231Clock clock;
 
 // constants
 const byte BUILD_IN_LED_PIN = 13;
@@ -49,7 +51,7 @@ const uint16_t MAX_PWM_VALUE = 65535U;
 //state
 volatile bool isOn = false;
 volatile int brightness = 0;
-volatile bool isMovement = false;
+volatile bool shouldBeOn = false;
 
 //increments
 volatile byte timer2SubroutineInc = 0;
@@ -69,13 +71,13 @@ void initPWM() {
 
   /*
    * WGM - Waveform Generation Mode (See Waveform Generation Mode Bit Description)
-   * For fast PWM, WGM13, WGM12 and WGM11 are set (WGM10 is not set) 
+   * For fast PWM, WGM13, WGM12 and WGM11 are set (WGM10 is not set)
    * and the ICR1 value determines the top of the counter.
    */
   TCCR1A |= 1 << WGM11;
   TCCR1B |= 1 << WGM12;
   TCCR1B |= 1 << WGM13;
-  
+
   ICR1 = MAX_PWM_VALUE; // 16-bit Input Capture Register - TOP of the counter
 
   TCCR1B |= 1 << CS10;   // Clock Select. Mode: clk/1 (No prescaling) - mode 14 fast PWM
@@ -85,13 +87,13 @@ void initPWM() {
    * The COM1A[1:0] and COM1B[1:0] control the Output Compare pins (OC1A and OC1B respectively)
    * behavior.
    * Here OC1A - pin 9, OC1B - pin 10.
-   * 
-   * When the WGM1[3:0] bits are set to the fast PWM mode,  COM1x[1:0] mean the following: 
+   *
+   * When the WGM1[3:0] bits are set to the fast PWM mode,  COM1x[1:0] mean the following:
    * clear OC1A/OC1B on Compare Match, set OC1A/OC1B at BOTTOM (non-inverting mode)
    */
-  TCCR1A |= 1 << COM1A1; 
+  TCCR1A |= 1 << COM1A1;
   TCCR1A |= 1 << COM1B1;
-  
+
   interrupts();
   pinMode(PWM_PIN, OUTPUT);
 }
@@ -101,10 +103,10 @@ void initPWM() {
 void setPWM(uint16_t pwm) {
   noInterrupts();
   /*
-   * The double buffered Output Compare Registers (OCR1A/B) are compared with the 
-   * Timer/Counter value at all time. The result of the compare can be used by the 
-   * Waveform Generator to generate a PWM or variable frequency output on the 
-   * Output Compare pin (OC1A/B). 
+   * The double buffered Output Compare Registers (OCR1A/B) are compared with the
+   * Timer/Counter value at all time. The result of the compare can be used by the
+   * Waveform Generator to generate a PWM or variable frequency output on the
+   * Output Compare pin (OC1A/B).
    * Here OC1A/B - pins 9/10 respectively.
    */
   OCR1B = pwm; // 16-bit Output Compare Register related to 10 pin -> PWM_PIN
@@ -134,16 +136,25 @@ void setup() {
 
   //init lazer sensor
   sensor.initSensor();
+  clock.initClock();
 }
 
 //--------------------------------------------------------------------------------------------------
 void loop() {
+  if (Serial.available() > 0) {
+    // send hours number into serial port to set the time (e.g. to set time to 16:00:00, send '16')
+    String incomingByte = Serial.readString();
+    int incomingInt = incomingByte.toInt();
+
+    clock.setTime(incomingInt);
+  }
+
   handleTimer2Subroutine();
 
   handleMovement();
-  
+
   handleTimeout();
-  
+
   handleDimmerSubroutine();
 }
 
@@ -157,8 +168,9 @@ void handleTimer2Subroutine() {
 void handleMovement() {
   bool isMovementPiro = digitalRead(MOVEMENT_SENSOR_PIN) == HIGH;
   bool isMovementLaser = sensor.isMovement();
-  isMovement = isMovementPiro || isMovementLaser;
-  if (isMovement) {
+  bool isNight = clock.isNight();
+  shouldBeOn = isNight && (isMovementPiro || isMovementLaser);
+  if (shouldBeOn) {
     isOn = true;
   }
 }
@@ -197,12 +209,12 @@ void handleDimmer() {
 
 // is triggered once per second, depends on RELOAD and TIMER_2_SUBROUTINE_DELAY
 void timer2Subroutine() {
-  if (isOn && !isMovement) {
+  if (isOn && !shouldBeOn) {
     lightingTimeInc++;
   } else {
     lightingTimeInc = 0;
   }
-  
+
   // blink for test
   isFlashOn = !isFlashOn;
   digitalWrite(BUILD_IN_LED_PIN, isFlashOn);
@@ -213,6 +225,7 @@ ISR(TIMER2_COMPA_vect) {
   timer2SubroutineInc++;
   lightDimmerSubroutineInc++;
   sensor.clk();
-  
+  clock.clk();
+
   OCR2A = RELOAD;
 }
