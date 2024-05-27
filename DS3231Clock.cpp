@@ -5,8 +5,8 @@
 DS3231  rtc(SDA, SCL);
 
 //constants
-const int READ_TIME_DELAY = 100; // once per second
-const int NIGHT_START = 23; // illumination is on from 11pm
+const int READ_TIME_DELAY = 500; // once per 5 seconds
+const int NIGHT_START = 22; // illumination is on from 11pm
 const int NIGHT_END = 6; // illumination is on to 6am
 
 //increments
