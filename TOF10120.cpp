@@ -10,7 +10,7 @@ const int LAZER_SENSOR_TO_DISTANCE = 1000;
 
 const int VALUE_NOT_CHANGED_LIMIT = 50;
 
-const int RESET_DELAY = 100;
+const int RESET_DELAY = 500;
 
 //increments
 volatile int pollingDelayInc = 0;
@@ -28,6 +28,7 @@ unsigned char dirsend_flag=0;
 
 
 void TOF10120::initSensor() {
+  Serial.println("Init sensor...");
   //turn on laser sensor
   pinMode(A0, OUTPUT);
   turnLaserOn();
@@ -52,12 +53,12 @@ void TOF10120::clk() {
 }
 
 bool TOF10120::isMovement() {
-  if (!isLaserOn()) {
+  if (isReset) {
+    reset();
     return false;
   }
   
-  if (isReset) {
-    reset();
+  if (!isLaserOn()) {
     return false;
   }
   
@@ -134,7 +135,7 @@ void TOF10120::SensorRead(unsigned char addr,unsigned char* datbuf,unsigned int 
 void TOF10120::reset() {
   if (!isReset) {
     Serial.println("Start RESET!");
-    Wire.endTransmission();
+//    Wire.endTransmission();
 
     Serial.println("Turn laser off!");
     turnLaserOff();
@@ -145,6 +146,7 @@ void TOF10120::reset() {
   
   if (resetDelayInc >= RESET_DELAY) {
     Serial.println("Wire.end()");
+    Wire.endTransmission();
     Wire.end();
 
     Serial.println("Turn laser on!");
